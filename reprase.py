@@ -9,14 +9,15 @@ def extract_smtp_info(line):
     
     match = smtp_pattern.search(line.strip())
     if match:
-        host = match.group("host") or match.group("domain")
+        host = match.group("host")
+        # Extract the full host (e.g., smtp.office365.com)
+        full_host = host if host else None
         port = match.group("port") if match.group("port") else "587"
         user = f"{match.group('user')}@{match.group('domain')}"
         password = match.group("pass")
-        domain = match.group("domain")
 
-        if host and user and password:
-            return domain, f"{host}|{port}|{user}|{password}"
+        if full_host and user and password:
+            return full_host, f"{full_host}|{port}|{user}|{password}"
     return None, None
 
 # Function to get the SMTP file from the user
@@ -28,24 +29,21 @@ def get_smtp_file():
         print(f"Error: {e}")
         return None
 
-# Function to save SMTP entries to domain-specific and combined files
-def save_to_files(smtp_entries_by_domain, combined_file_path):
+# Function to save SMTP entries to host-specific and combined files
+def save_to_files(smtp_entries_by_host, combined_file_path):
     output_dir = "smtp_output"
     os.makedirs(output_dir, exist_ok=True)
 
-    domain_files = {}
     combined_file = open(combined_file_path, 'w', encoding='utf-8')
 
     try:
-        for domain, entries in smtp_entries_by_domain.items():
-            domain_file_path = os.path.join(output_dir, f"{domain}.txt")
-            domain_files[domain] = open(domain_file_path, 'w', encoding='utf-8')
-            for entry in entries:
-                domain_files[domain].write(entry + '\n')
-                combined_file.write(entry + '\n')
+        for host, entries in smtp_entries_by_host.items():
+            host_file_path = os.path.join(output_dir, f"{host}.txt")
+            with open(host_file_path, 'w', encoding='utf-8') as host_file:
+                for entry in entries:
+                    host_file.write(entry + '\n')
+                    combined_file.write(entry + '\n')
     finally:
-        for file in domain_files.values():
-            file.close()
         combined_file.close()
 
     print(f"\nOutput files saved to '{output_dir}' folder.")
@@ -57,7 +55,7 @@ def main():
     if not smtp_file:
         return
 
-    smtp_entries_by_domain = {}
+    smtp_entries_by_host = {}
     combined_file_path = "all_results.txt"
 
     # Count total lines for the progress bar
@@ -66,16 +64,16 @@ def main():
 
     # Process each line with a progress bar
     for line in tqdm(smtp_file, total=total_lines, desc="Processing SMTP Entries"):
-        domain, smtp_entry = extract_smtp_info(line)
-        if domain and smtp_entry:
-            if domain not in smtp_entries_by_domain:
-                smtp_entries_by_domain[domain] = []
-            smtp_entries_by_domain[domain].append(smtp_entry)
+        host, smtp_entry = extract_smtp_info(line)
+        if host and smtp_entry:
+            if host not in smtp_entries_by_host:
+                smtp_entries_by_host[host] = []
+            smtp_entries_by_host[host].append(smtp_entry)
 
     smtp_file.close()  # Close the input file after processing
 
-    if smtp_entries_by_domain:
-        save_to_files(smtp_entries_by_domain, combined_file_path)
+    if smtp_entries_by_host:
+        save_to_files(smtp_entries_by_host, combined_file_path)
     else:
         print("No valid SMTP entries found.")
 
